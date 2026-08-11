@@ -25,6 +25,7 @@ jobs:
       - run: npm run check
       - run: npm run build
       - run: bash -n install.sh
+      - run: docker build --target production-dependencies --tag mrowsearch-dependency-check .
       - run: docker compose config --quiet
         env:
           MROW_PUBLIC_URL: http://192.168.1.20:3080
