@@ -1,0 +1,231 @@
+name: mrowsearch
+
+x-worker: &worker
+  build:
+    context: .
+    dockerfile: browser/Dockerfile
+  image: ${MROW_WORKER_IMAGE:-mrowsearch-worker:1.0.0}
+  restart: unless-stopped
+  network_mode: none
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  mem_limit: 1280m
+  cpus: 0.8
+  shm_size: 512m
+  environment: &worker-environment
+    VNC_PW: ${MROW_WORKER_PASSWORD}
+    LAUNCH_URL: about:blank
+    APP_ARGS: --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 --remote-allow-origins=http://127.0.0.1:9222 --proxy-server=http://127.0.0.1:3128 --proxy-bypass-list=<-loopback> --disable-sync --disable-background-networking --disable-component-update --disable-default-apps --disable-features=WebRtcHideLocalIpsWithMdns,AutofillServerCommunication --disable-popup-blocking --force-webrtc-ip-handling-policy=disable_non_proxied_udp --webrtc-ip-handling-policy=disable_non_proxied_udp --no-first-run --kiosk
+    MROW_MAX_UPLOAD_BYTES: ${MROW_MAX_UPLOAD_BYTES:-104857600}
+    MROW_MAX_DOWNLOAD_BYTES: ${MROW_MAX_DOWNLOAD_BYTES:-1073741824}
+    MROW_MAX_TEMP_BYTES: ${MROW_MAX_TEMP_BYTES:-2147483648}
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=512m
+    - /var/tmp:rw,noexec,nosuid,size=64m
+    - /var/log:rw,noexec,nosuid,size=32m
+    - /var/lib:rw,noexec,nosuid,size=64m
+    - /run:rw,noexec,nosuid,size=32m
+    - /home/kasm-user:rw,nosuid,size=2304m
+  deploy:
+    resources:
+      limits:
+        cpus: "0.8"
+        memory: 1280M
+
+services:
+  mrow-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${MROW_APP_IMAGE:-mrowsearch-app:1.0.0}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    ports:
+      - ${MROW_BIND_ADDRESS:-0.0.0.0}:${MROW_PORT:-3080}:3080
+    networks:
+      - services
+    volumes:
+      - app-data:/data
+      - egress-socket:/run/mrow-egress:ro
+      - worker-1-socket:/run/workers/worker-1:ro
+      - worker-2-socket:/run/workers/worker-2:ro
+      - worker-3-socket:/run/workers/worker-3:ro
+      - worker-4-socket:/run/workers/worker-4:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    environment:
+      NODE_ENV: production
+      MROW_HOST: 0.0.0.0
+      MROW_PORT: 3080
+      MROW_PUBLIC_URL: ${MROW_PUBLIC_URL}
+      MROW_ALLOWED_ORIGINS: ${MROW_ALLOWED_ORIGINS:-}
+      MROW_ALLOW_INSECURE_HTTP: ${MROW_ALLOW_INSECURE_HTTP:-false}
+      MROW_DATABASE_PATH: /data/mrowsearch.db
+      MROW_SETUP_TOKEN: ${MROW_SETUP_TOKEN}
+      MROW_DATA_KEY: ${MROW_DATA_KEY}
+      MROW_SESSION_SECRET: ${MROW_SESSION_SECRET}
+      MROW_SEARXNG_URL: http://mrow-search:8080
+      MROW_EGRESS_SETTINGS_PATH: /data/egress-settings.json
+      MROW_EGRESS_SOCKET: /run/mrow-egress/proxy.sock
+      MROW_WORKER_DIRECTORIES: /run/workers/worker-1,/run/workers/worker-2,/run/workers/worker-3,/run/workers/worker-4
+      MROW_WORKER_PASSWORD: ${MROW_WORKER_PASSWORD}
+      MROW_MAX_UPLOAD_BYTES: ${MROW_MAX_UPLOAD_BYTES:-104857600}
+      MROW_MAX_DOWNLOAD_BYTES: ${MROW_MAX_DOWNLOAD_BYTES:-1073741824}
+      MROW_MAX_TEMP_BYTES: ${MROW_MAX_TEMP_BYTES:-2147483648}
+      MROW_TRUST_PROXY: ${MROW_TRUST_PROXY:-127.0.0.1,::1}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3080/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    mem_limit: 512m
+    cpus: 0.4
+    deploy:
+      resources:
+        limits:
+          cpus: "0.4"
+          memory: 512M
+    depends_on:
+      mrow-search:
+        condition: service_healthy
+      mrow-egress:
+        condition: service_healthy
+
+  mrow-search:
+    image: searxng/searxng:2026.7.28-c01178d03@sha256:5d6d903ab82afa56ee32792d477f36bc63d3e5ca04fcb6947e28a5cfd987fad3
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - services
+    environment:
+      SEARXNG_SECRET: ${MROW_SEARXNG_SECRET}
+    volumes:
+      - ./deploy/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    mem_limit: 512m
+    cpus: 0.3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 512M
+
+  mrow-egress:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${MROW_APP_IMAGE:-mrowsearch-app:1.0.0}
+    command: ["node", "dist/egress/index.js"]
+    restart: unless-stopped
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - services
+    volumes:
+      - app-data:/data:ro
+      - egress-socket:/run/mrow-egress
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    environment:
+      MROW_EGRESS_SOCKET: /run/mrow-egress/proxy.sock
+      MROW_EGRESS_SETTINGS_PATH: /data/egress-settings.json
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('fs').accessSync('/run/mrow-egress/proxy.sock')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    mem_limit: 256m
+    cpus: 0.1
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 256M
+
+  mrow-browser-1:
+    <<: *worker
+    volumes:
+      - worker-1-socket:/run/mrow
+      - egress-socket:/run/mrow-egress:ro
+
+  mrow-browser-2:
+    <<: *worker
+    volumes:
+      - worker-2-socket:/run/mrow
+      - egress-socket:/run/mrow-egress:ro
+
+  mrow-browser-3:
+    <<: *worker
+    volumes:
+      - worker-3-socket:/run/mrow
+      - egress-socket:/run/mrow-egress:ro
+
+  mrow-browser-4:
+    <<: *worker
+    volumes:
+      - worker-4-socket:/run/mrow
+      - egress-socket:/run/mrow-egress:ro
+
+networks:
+  services:
+    driver: bridge
+
+volumes:
+  app-data:
+  egress-socket:
+  worker-1-socket:
+  worker-2-socket:
+  worker-3-socket:
+  worker-4-socket:
+
+x-casaos:
+  id: com.github.alana86521.mrowsearch
+  architectures:
+    - amd64
+    - arm64
+  main: mrow-app
+  index: /
+  port_map: "${MROW_CASAOS_PORT:-3080}"
+  scheme: "${MROW_CASAOS_SCHEME:-http}"
+  hostname: "${MROW_CASAOS_HOSTNAME:-}"
+  icon: https://raw.githubusercontent.com/lucide-icons/lucide/a7c781bd43dbf295a4c2ab07d25d544dd7879bf9/icons/search.svg
+  title:
+    en_US: MrowSearch
+    en_us: MrowSearch
+  tagline:
+    en_US: Private search with isolated browser workers
+    en_us: Private search with isolated browser workers
+  description:
+    en_US: Search through an internal SearXNG service and open sites in isolated remote Chromium workers.
+    en_us: Search through an internal SearXNG service and open sites in isolated remote Chromium workers.
+  author: Alana86521
+  developer: Alana86521
+  category: Networking
+  version: "1.0.0"
+  update_at: "2026-08-11"
+  screenshot_link: []
+  thumbnail: ""
+  tips: {}
+  repo: https://github.com/Alana86521/MrowSearch

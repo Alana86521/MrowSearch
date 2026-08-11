@@ -1,0 +1,9 @@
+{
+  "AudioCaptureAllowed": false,
+  "AutofillAddressEnabled": false,
+  "AutofillCreditCardEnabled": false,
+  "BlockThirdPartyCookies": true,
+  "BrowserSignin": 0,
+  "PasswordManagerEnabled": false,
+  "VideoCaptureAllowed": false
+}
