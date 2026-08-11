@@ -8,11 +8,12 @@
   },
   "scripts": {
     "dev": "concurrently -k -n server,client \"tsx watch src/server/index.ts\" \"vite\"",
-    "build": "npm run check && vite build && tsc -p tsconfig.server.json",
+    "build": "npm run check:source && vite build && tsc -p tsconfig.server.json",
     "start": "node dist/server/index.js",
     "start:egress": "node dist/egress/index.js",
     "start:worker": "node dist/worker/index.js",
-    "check": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit && node scripts/policy-check.mjs",
+    "check": "npm run check:source && node scripts/policy-check.mjs",
+    "check:source": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit check"
   },
