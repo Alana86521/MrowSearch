@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
   totp_secret TEXT,
   totp_enabled INTEGER DEFAULT 0 NOT NULL,
   safe_search INTEGER DEFAULT 1 NOT NULL,
+  search_engines TEXT DEFAULT '["duckduckgo","bing","mojeek","qwant","yahoo","mwmbl","wiby","wikipedia"]' NOT NULL,
   privacy_mode TEXT DEFAULT 'session' NOT NULL,
   history_mode TEXT DEFAULT 'session' NOT NULL,
   tracking_level TEXT DEFAULT 'standard' NOT NULL,
@@ -129,6 +130,10 @@ export function createDatabase(config: AppConfig) {
   sqlite.pragma("foreign_keys = ON")
   sqlite.pragma("busy_timeout = 5000")
   sqlite.exec(migrationSql)
+  const userColumns = sqlite.pragma("table_info(users)") as Array<{ name: string }>
+  if (!userColumns.some(column => column.name === "search_engines")) {
+    sqlite.exec(`ALTER TABLE users ADD COLUMN search_engines TEXT DEFAULT '["duckduckgo","bing","mojeek","qwant","yahoo","mwmbl","wiby","wikipedia"]' NOT NULL`)
+  }
   sqlite.pragma("optimize")
   return {
     sqlite,

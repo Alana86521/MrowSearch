@@ -3,7 +3,7 @@ import argon2 from "argon2"
 import { and, eq, lt, or } from "drizzle-orm"
 import * as OTPAuth from "otpauth"
 import type { FastifyRequest } from "fastify"
-import type { SessionUser } from "../../shared/contracts.js"
+import { parseSearchEngines, type SessionUser } from "../../shared/contracts.js"
 import type { AppConfig } from "../config.js"
 import type { AppDatabase } from "../db/index.js"
 import { auditEvents, invites, loginChallenges, passwordResets, recoveryCodes, sessions, users } from "../db/schema.js"
@@ -249,6 +249,7 @@ export class AuthService {
       status: user.status,
       totpEnabled: user.totpEnabled,
       safeSearch: user.safeSearch as 0 | 1 | 2,
+      searchEngines: parseSearchEngines(user.searchEngines),
       privacyMode: user.privacyMode,
       historyMode: user.historyMode,
       trackingLevel: user.trackingLevel,

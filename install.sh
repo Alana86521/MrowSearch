@@ -388,6 +388,8 @@ register_with_casaos() {
   fi
   rm -f "$rendered" "$response"
   restore_casaos_compose
+  say "Recreating the application containers with the updated images."
+  compose up -d --force-recreate --remove-orphans
   remove_generated_service
   return 0
 }
@@ -509,12 +511,18 @@ uninstall_application() {
 }
 
 update_application() {
+  local previous_head
   command -v git >/dev/null 2>&1 || fail "Git is required for an update."
   [[ -d "$repo_root/.git" ]] || fail "This directory is not a Git checkout."
+  restore_casaos_compose
   if [[ -n "$(git -C "$repo_root" status --porcelain --untracked-files=no)" ]]; then
     fail "Commit or stash the tracked changes before an update."
   fi
+  previous_head="$(git -C "$repo_root" rev-parse HEAD)"
   git -C "$repo_root" pull --ff-only
+  if [[ "$(git -C "$repo_root" rev-parse HEAD)" != "$previous_head" ]]; then
+    exec bash "$repo_root/install.sh" install
+  fi
   install_application
 }
 

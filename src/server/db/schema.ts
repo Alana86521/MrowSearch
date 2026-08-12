@@ -9,6 +9,7 @@ export const users = sqliteTable("users", {
   totpSecret: text("totp_secret"),
   totpEnabled: integer("totp_enabled", { mode: "boolean" }).notNull().default(false),
   safeSearch: integer("safe_search").notNull().default(1),
+  searchEngines: text("search_engines").notNull().default('["duckduckgo","bing","mojeek","qwant","yahoo","mwmbl","wiby","wikipedia"]'),
   privacyMode: text("privacy_mode", { enum: ["ephemeral", "session", "persistent"] }).notNull().default("session"),
   historyMode: text("history_mode", { enum: ["never", "session"] }).notNull().default("session"),
   trackingLevel: text("tracking_level", { enum: ["off", "standard", "strict"] }).notNull().default("standard"),

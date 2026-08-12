@@ -6,6 +6,7 @@ export const permissionKindSchema = z.enum(["camera", "microphone", "location", 
 export const permissionDecisionSchema = z.enum(["block", "allow-once", "allow-site"])
 export const popupPolicySchema = z.enum(["block", "ask", "private-tab"])
 export const trackingLevelSchema = z.enum(["off", "standard", "strict"])
+export const searchEngineSchema = z.enum(["duckduckgo", "bing", "mojeek", "qwant", "yahoo", "mwmbl", "wiby", "wikipedia"])
 export const userRoleSchema = z.enum(["owner", "user"])
 export const userStatusSchema = z.enum(["pending", "active", "disabled"])
 
@@ -15,8 +16,21 @@ export type PermissionKind = z.infer<typeof permissionKindSchema>
 export type PermissionDecision = z.infer<typeof permissionDecisionSchema>
 export type PopupPolicy = z.infer<typeof popupPolicySchema>
 export type TrackingLevel = z.infer<typeof trackingLevelSchema>
+export type SearchEngine = z.infer<typeof searchEngineSchema>
 export type UserRole = z.infer<typeof userRoleSchema>
 export type UserStatus = z.infer<typeof userStatusSchema>
+
+export const defaultSearchEngines: SearchEngine[] = ["duckduckgo", "bing", "mojeek", "qwant", "yahoo", "mwmbl", "wiby", "wikipedia"]
+export const searchEnginesSchema = z.array(searchEngineSchema).min(1).max(defaultSearchEngines.length).refine(value => new Set(value).size === value.length)
+
+export function parseSearchEngines(value: unknown): SearchEngine[] {
+  try {
+    const parsed = searchEnginesSchema.safeParse(typeof value === "string" ? JSON.parse(value) : value)
+    return parsed.success ? parsed.data : [...defaultSearchEngines]
+  } catch {
+    return [...defaultSearchEngines]
+  }
+}
 
 export interface ApiError {
   code: string
@@ -32,6 +46,7 @@ export interface SessionUser {
   status: UserStatus
   totpEnabled: boolean
   safeSearch: 0 | 1 | 2
+  searchEngines: SearchEngine[]
   privacyMode: PrivacyMode
   historyMode: HistoryMode
   trackingLevel: TrackingLevel
@@ -129,6 +144,7 @@ export type ClearDataRequest = z.infer<typeof clearDataRequestSchema>
 
 export const viewerPreferencesSchema = z.object({
   safeSearch: z.union([z.literal(0), z.literal(1), z.literal(2)]),
+  searchEngines: searchEnginesSchema,
   privacyMode: privacyModeSchema,
   historyMode: historyModeSchema,
   trackingLevel: trackingLevelSchema,

@@ -529,6 +529,29 @@ code {
   align-items: end;
 }
 
+.engine-fieldset {
+  grid-column: 1 / -1;
+  padding: 1rem;
+  border: 1px solid #26262B;
+  border-radius: 6px;
+}
+
+.engine-fieldset legend {
+  padding: 0 0.35rem;
+  color: #F4F4F5;
+  font-weight: 600;
+}
+
+.engine-fieldset p {
+  margin-top: 0;
+}
+
+.engine-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
 .check-list,
 .clear-grid {
   display: grid;
@@ -743,7 +766,8 @@ code {
   }
 
   .field-grid,
-  .clear-grid {
+  .clear-grid,
+  .engine-grid {
     grid-template-columns: 1fr;
   }
 

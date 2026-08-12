@@ -1,17 +1,17 @@
 import { randomUUID } from "node:crypto"
 import { z } from "zod"
-import type { SearchResponse } from "../../shared/contracts.js"
+import { defaultSearchEngines, type SearchEngine, type SearchResponse } from "../../shared/contracts.js"
 import { displayUrl } from "../../shared/url.js"
 import type { AppConfig } from "../config.js"
 import { ApiFault } from "../lib/errors.js"
 
 const resultSchema = z.object({
-  title: z.string().default("Untitled result"),
+  title: z.string().nullish().transform(value => value || "Untitled result"),
   url: z.string().url(),
-  content: z.string().optional().default(""),
-  engine: z.string().optional(),
-  engines: z.array(z.string()).optional(),
-  publishedDate: z.string().optional()
+  content: z.string().nullish().transform(value => value ?? ""),
+  engine: z.string().nullish(),
+  engines: z.array(z.string()).nullish(),
+  publishedDate: z.string().nullish()
 })
 
 const responseSchema = z.object({
@@ -23,8 +23,11 @@ const responseSchema = z.object({
 export class SearchService {
   constructor(private readonly config: AppConfig) {}
 
-  async search(query: string, page: number, safeSearch: 0 | 1 | 2, signal?: AbortSignal): Promise<SearchResponse> {
+  async search(query: string, page: number, safeSearch: 0 | 1 | 2, engines: SearchEngine[], signal?: AbortSignal): Promise<SearchResponse> {
     const body = new URLSearchParams({ q: query, format: "json", pageno: String(page), categories: "general", safesearch: String(safeSearch), language: "auto" })
+    const selected = new Set(engines)
+    body.set("disabled_engines", defaultSearchEngines.filter(engine => !selected.has(engine)).map(engine => `${engine}__general`).join(","))
+    body.set("enabled_engines", engines.map(engine => `${engine}__general`).join(","))
     let response: Response
     try {
       response = await fetch(new URL("/search", this.config.searxngUrl), {
@@ -49,7 +52,7 @@ export class SearchService {
         return []
       }
       const source = result.data.engine ?? result.data.engines?.join(", ") ?? "Search provider"
-      return [{ id: randomUUID(), title: result.data.title, url: result.data.url, displayUrl: displayUrl(result.data.url), snippet: result.data.content, source, publishedAt: result.data.publishedDate }]
+      return [{ id: randomUUID(), title: result.data.title, url: result.data.url, displayUrl: displayUrl(result.data.url), snippet: result.data.content, source, publishedAt: result.data.publishedDate ?? undefined }]
     }).slice(0, 20)
     if (results.length === 0) {
       throw new ApiFault(502, { code: "NO_SEARCH_RESULTS", message: "No enabled search engine returned a result.", action: "Try a different query or ask the owner to check the search engines." })

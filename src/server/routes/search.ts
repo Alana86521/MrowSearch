@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify"
 import { z } from "zod"
+import { parseSearchEngines } from "../../shared/contracts.js"
 import type { AuthService } from "../services/auth.js"
 import type { SearchService } from "../services/search.js"
 
@@ -10,6 +11,6 @@ export function registerSearchRoutes(app: FastifyInstance, auth: AuthService, se
     const context = auth.requireRequest(request)
     auth.verifyCsrf(request, context)
     const body = searchSchema.parse(request.body)
-    return search.search(body.q, body.page, context.user.safeSearch as 0 | 1 | 2)
+    return search.search(body.q, body.page, context.user.safeSearch as 0 | 1 | 2, parseSearchEngines(context.user.searchEngines))
   })
 }

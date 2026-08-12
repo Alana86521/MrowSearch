@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import type { ClearDataRequest, SearchResponse, SearchResult, SessionResponse, SessionUser, ViewerCommand, ViewerEvent, ViewerPreferences, ViewerSnapshot } from "../shared/contracts"
+import type { ClearDataRequest, SearchEngine, SearchResponse, SearchResult, SessionResponse, SessionUser, ViewerCommand, ViewerEvent, ViewerPreferences, ViewerSnapshot } from "../shared/contracts"
 import { classifyAddressInput } from "../shared/url"
 import { api, formatError, post } from "./api"
 
@@ -23,6 +23,16 @@ interface WorkerHealth {
 }
 
 const emptySession: SessionResponse = { setupRequired: false, authenticated: false }
+const searchEngineOptions: Array<{ value: SearchEngine; label: string }> = [
+  { value: "duckduckgo", label: "DuckDuckGo" },
+  { value: "bing", label: "Bing" },
+  { value: "mojeek", label: "Mojeek" },
+  { value: "qwant", label: "Qwant" },
+  { value: "yahoo", label: "Yahoo" },
+  { value: "mwmbl", label: "Mwmbl" },
+  { value: "wiby", label: "Wiby" },
+  { value: "wikipedia", label: "Wikipedia" }
+]
 
 export function App() {
   const [session, setSession] = useState<SessionResponse>(emptySession)
@@ -353,7 +363,7 @@ function ViewerScreen({ snapshot, viewerEvent, csrfToken, onSnapshot, onViewerEv
       </div>
       {active?.compatibility !== "ready" && active?.compatibility !== undefined && <div className="compatibility" role="alert"><strong>The destination cannot run in the private viewer.</strong><span>Check the address, try again, or open it externally.</span><button type="button" onClick={() => setExternalUrl(active.currentUrl)}>Open externally</button></div>}
       <div className="viewer-frame-wrap">
-        {streamSrc ? <iframe title="Private Chromium display" className="viewer-frame" src={streamSrc} sandbox="allow-scripts allow-forms allow-pointer-lock allow-same-origin" allow="clipboard-read 'none'; clipboard-write 'none'; camera 'none'; microphone 'none'; geolocation 'none'" /> : <div className="stream-loading">Connecting to the private display.</div>}
+        {streamSrc ? <iframe title="Private Chromium display" className="viewer-frame" src={streamSrc} allow="clipboard-read 'none'; clipboard-write 'none'; camera 'none'; microphone 'none'; geolocation 'none'" /> : <div className="stream-loading">Connecting to the private display.</div>}
       </div>
       <audio ref={audioRef} src={audioSrc} preload="none" />
       {externalUrl && <ConfirmExternal url={externalUrl} onCancel={() => setExternalUrl("")} />}
@@ -490,11 +500,18 @@ function formatBytes(value: number) {
 }
 
 function SettingsScreen({ user, csrfToken, onSaved, onNotice }: { user: SessionUser; csrfToken: string; onSaved: () => Promise<SessionResponse>; onNotice: (message: string) => void }) {
-  const initial: ViewerPreferences = useMemo(() => ({ safeSearch: user.safeSearch, privacyMode: user.privacyMode, historyMode: user.historyMode, trackingLevel: user.trackingLevel, popupPolicy: user.popupPolicy, closedTabsEnabled: user.closedTabsEnabled, clearOnLogout: user.clearOnLogout, clearOnTabClose: user.clearOnTabClose }), [user])
+  const initial: ViewerPreferences = useMemo(() => ({ safeSearch: user.safeSearch, searchEngines: user.searchEngines, privacyMode: user.privacyMode, historyMode: user.historyMode, trackingLevel: user.trackingLevel, popupPolicy: user.popupPolicy, closedTabsEnabled: user.closedTabsEnabled, clearOnLogout: user.clearOnLogout, clearOnTabClose: user.clearOnTabClose }), [user])
   const [preferences, setPreferences] = useState(initial)
   const [totp, setTotp] = useState<{ secret: string; qrCode: string } | null>(null)
   const [code, setCode] = useState("")
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([])
+  const setSearchEngine = (engine: SearchEngine, enabled: boolean) => {
+    if (!enabled && preferences.searchEngines.length === 1) {
+      onNotice("Select at least one search engine.")
+      return
+    }
+    setPreferences({ ...preferences, searchEngines: enabled ? [...preferences.searchEngines, engine] : preferences.searchEngines.filter(value => value !== engine) })
+  }
   const save = async (event: FormEvent) => {
     event.preventDefault()
     try {
@@ -525,6 +542,7 @@ function SettingsScreen({ user, csrfToken, onSaved, onNotice }: { user: SessionU
   return <main className="settings-page"><div className="page-heading"><h1>Settings</h1><p>Control search, site data, and private tab behavior.</p></div><form className="settings-form" onSubmit={save}>
     <section><h2>Search and privacy</h2><div className="field-grid">
       <Select label="SafeSearch" value={String(preferences.safeSearch)} onChange={value => setPreferences({ ...preferences, safeSearch: Number(value) as 0 | 1 | 2 })} options={[['0','Off'],['1','Moderate'],['2','Strict']]} />
+      <fieldset className="engine-fieldset"><legend>Search engines</legend><p>Choose which upstream engines receive your searches.</p><div className="engine-grid">{searchEngineOptions.map(engine => <Check key={engine.value} label={engine.label} checked={preferences.searchEngines.includes(engine.value)} onChange={value => setSearchEngine(engine.value, value)} />)}</div></fieldset>
       <Select label="Privacy mode" value={preferences.privacyMode} onChange={value => setPreferences({ ...preferences, privacyMode: value as ViewerPreferences["privacyMode"] })} options={[["ephemeral","Ephemeral"],["session","Session Only"],["persistent","Persistent"]]} />
       <Select label="Tracking protection" value={preferences.trackingLevel} onChange={value => setPreferences({ ...preferences, trackingLevel: value as ViewerPreferences["trackingLevel"] })} options={[["off","Off"],["standard","Standard"],["strict","Strict"]]} />
       <Select label="Popup policy" value={preferences.popupPolicy} onChange={value => setPreferences({ ...preferences, popupPolicy: value as ViewerPreferences["popupPolicy"] })} options={[["block","Block"],["ask","Ask"],["private-tab","Open in private tab"]]} />

@@ -37,13 +37,14 @@ export class ViewerProxy {
         delete headers["www-authenticate"]
         delete headers["content-length"]
         delete headers["content-security-policy"]
+        delete headers["x-frame-options"]
         for (const [name, value] of Object.entries(headers)) {
           if (value !== undefined) {
             reply.header(name, value)
           }
         }
         reply.header("cache-control", contentType.includes("text/html") ? "no-store" : "private, max-age=3600")
-        reply.header("content-security-policy", "default-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; frame-ancestors 'self'; form-action 'self'")
+        reply.header("content-security-policy", "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; frame-ancestors 'self'; form-action 'self'")
         reply.status(response.statusCode ?? 502)
         if (contentType.includes("text/html") || contentType.includes("text/css")) {
           const chunks: Buffer[] = []
@@ -77,7 +78,7 @@ export class ViewerProxy {
     const upstream = connectSocket(allocation.worker.kasmSocket)
     upstream.once("connect", () => {
       const requestHeaders = this.buildUpgradeHeaders(request)
-      upstream.write(`GET /websockify HTTP/1.1\r\n${requestHeaders}\r\n`)
+      upstream.write(`GET /websockify HTTP/1.1\r\n${requestHeaders}\r\n\r\n`)
       if (head.length > 0) {
         upstream.write(head)
       }

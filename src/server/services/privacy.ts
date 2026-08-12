@@ -8,7 +8,7 @@ export class PrivacyService {
   constructor(private readonly db: AppDatabase) {}
 
   updatePreferences(context: AuthContext, preferences: ViewerPreferences) {
-    this.db.update(users).set(preferences).where(eq(users.id, context.user.id)).run()
+    this.db.update(users).set({ ...preferences, searchEngines: JSON.stringify(preferences.searchEngines) }).where(eq(users.id, context.user.id)).run()
   }
 
   clear(context: AuthContext, request: ClearDataRequest) {
