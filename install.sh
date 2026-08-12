@@ -342,6 +342,18 @@ casaos_app_exists() {
   curl -fsS --connect-timeout 3 --max-time 10 "$endpoint/v2/app_management/compose/mrowsearch" >/dev/null 2>&1
 }
 
+restore_casaos_compose() {
+  local tracked_hash
+  local backup_hash
+  [[ -d "$repo_root/.git" && -f "$compose_file.bak" ]] || return
+  tracked_hash="$(git -C "$repo_root" rev-parse HEAD:compose.yaml 2>/dev/null || true)"
+  backup_hash="$(git -C "$repo_root" hash-object "$compose_file.bak" 2>/dev/null || true)"
+  if [[ -n "$tracked_hash" && "$tracked_hash" == "$backup_hash" ]]; then
+    git -C "$repo_root" restore --source=HEAD -- compose.yaml
+    rm -f "$compose_file.bak"
+  fi
+}
+
 register_with_casaos() {
   local endpoint
   local rendered
@@ -375,6 +387,7 @@ register_with_casaos() {
     return 1
   fi
   rm -f "$rendered" "$response"
+  restore_casaos_compose
   remove_generated_service
   return 0
 }
