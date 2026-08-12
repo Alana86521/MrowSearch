@@ -19,6 +19,7 @@ interface WorkerHealth {
   id: string
   ready: boolean
   browserConnected: boolean
+  audioReady: boolean
   sessionId: string | null
 }
 
@@ -279,16 +280,19 @@ function ViewerScreen({ snapshot, viewerEvent, csrfToken, onSnapshot, onViewerEv
   const [externalUrl, setExternalUrl] = useState("")
   const [permissionsOpen, setPermissionsOpen] = useState(false)
   const [streamSrc, setStreamSrc] = useState("")
-  const [audioSrc, setAudioSrc] = useState("")
   const [audioEnabled, setAudioEnabled] = useState(false)
+  const [audioStarting, setAudioStarting] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)
   const active = snapshot?.tabs.find(tab => tab.id === snapshot.activeTabId) ?? null
   useEffect(() => setAddress(active?.currentUrl === "about:blank" ? "" : active?.currentUrl ?? ""), [active?.currentUrl])
   useEffect(() => {
     if (!snapshot) {
       setStreamSrc("")
-      setAudioSrc("")
+      audioRef.current?.pause()
+      audioRef.current?.removeAttribute("src")
+      audioRef.current?.load()
       setAudioEnabled(false)
+      setAudioStarting(false)
       return
     }
     let cancelled = false
@@ -297,7 +301,6 @@ function ViewerScreen({ snapshot, viewerEvent, csrfToken, onSnapshot, onViewerEv
       const url = new URL(snapshot.streamPath, location.origin)
       url.searchParams.set("path", `api/viewer/stream?token=${encodeURIComponent(token)}`)
       setStreamSrc(`${url.pathname}${url.search}`)
-      setAudioSrc(`/api/viewer/audio?token=${encodeURIComponent(token)}`)
     }).catch(error => onNotice(formatError(error)))
     return () => { cancelled = true }
   }, [snapshot?.sessionId, csrfToken, onNotice])
@@ -326,6 +329,32 @@ function ViewerScreen({ snapshot, viewerEvent, csrfToken, onSnapshot, onViewerEv
     sessionStorage.setItem("mrow-pending-search", destination.query)
     onSearch()
   }
+  const toggleAudio = async () => {
+    const audio = audioRef.current
+    if (!audio) {
+      return
+    }
+    if (audioEnabled) {
+      audio.pause()
+      audio.removeAttribute("src")
+      audio.load()
+      setAudioEnabled(false)
+      return
+    }
+    setAudioStarting(true)
+    try {
+      const { token } = await post<{ token: string }>("/api/auth/socket-token", {}, csrfToken)
+      audio.src = `/api/viewer/audio?token=${encodeURIComponent(token)}`
+      await audio.play()
+      setAudioEnabled(true)
+    } catch {
+      audio.removeAttribute("src")
+      audio.load()
+      onNotice("Audio could not start. Check worker audio health and try again.")
+    } finally {
+      setAudioStarting(false)
+    }
+  }
   if (!snapshot) {
     return <main className="center-stage"><section className="empty-state"><h1>Private viewer</h1><p>Start an isolated Chromium session. Capacity is limited to four active viewers.</p><button className="primary" type="button" onClick={start}>Start viewer</button></section></main>
   }
@@ -351,21 +380,17 @@ function ViewerScreen({ snapshot, viewerEvent, csrfToken, onSnapshot, onViewerEv
         <button type="button" onClick={() => active && onCommand({ type: "duplicate", tabId: active.id })}>Duplicate</button>
         <button type="button" onClick={() => onCommand({ type: "reopen-closed" })}>Reopen closed</button>
         <button type="button" disabled={!active?.currentUrl} onClick={() => setPermissionsOpen(true)}>Site permissions</button>
-        <button type="button" disabled={!audioSrc} onClick={() => {
-          if (audioEnabled) {
-            audioRef.current?.pause()
-            setAudioEnabled(false)
-          } else {
-            void audioRef.current?.play().then(() => setAudioEnabled(true)).catch(() => onNotice("Audio could not start. Check worker audio health and try again."))
-          }
-        }}>{audioEnabled ? "Mute audio" : "Enable audio"}</button>
+        <button type="button" disabled={audioStarting} onClick={() => void toggleAudio()}>{audioStarting ? "Starting audio" : audioEnabled ? "Mute audio" : "Enable audio"}</button>
         <button type="button" onClick={() => active && onCommand({ type: "clear-history", tabId: active.id })}>Clear history</button>
       </div>
       {active?.compatibility !== "ready" && active?.compatibility !== undefined && <div className="compatibility" role="alert"><strong>The destination cannot run in the private viewer.</strong><span>Check the address, try again, or open it externally.</span><button type="button" onClick={() => setExternalUrl(active.currentUrl)}>Open externally</button></div>}
       <div className="viewer-frame-wrap">
         {streamSrc ? <iframe title="Private Chromium display" className="viewer-frame" src={streamSrc} allow="clipboard-read 'none'; clipboard-write 'none'; camera 'none'; microphone 'none'; geolocation 'none'" /> : <div className="stream-loading">Connecting to the private display.</div>}
       </div>
-      <audio ref={audioRef} src={audioSrc} preload="none" />
+      <audio ref={audioRef} preload="none" onEnded={() => setAudioEnabled(false)} onError={() => {
+        setAudioEnabled(false)
+        if (!audioStarting) onNotice("The audio stream stopped. Check worker audio health and try again.")
+      }} />
       {externalUrl && <ConfirmExternal url={externalUrl} onCancel={() => setExternalUrl("")} />}
       {viewerEvent?.type === "download" && <DownloadApproval event={viewerEvent} onDecision={async decision => {
         await onCommand({ type: "download-decision", fileId: viewerEvent.fileId, decision })
@@ -618,7 +643,7 @@ function AdminScreen({ csrfToken, onNotice }: { csrfToken: string; onNotice: (me
   return <main className="settings-page"><div className="page-heading"><h1>Owner settings</h1><p>Manage access, workers, DNS, and allowed destination ports.</p></div>
     <section className="settings-section"><h2>Invites</h2><p>Each code works once and expires after seven days.</p><button className="primary" type="button" onClick={createInvite}>Create invite</button>{invite && <div className="secret-output"><code>{invite}</code><button type="button" onClick={() => navigator.clipboard.writeText(invite)}>Copy code</button></div>}</section>
     <section className="settings-section"><h2>Users</h2><div className="data-list">{users.map(user => <div className="data-row" key={user.id}><div><strong>{user.username}</strong><span>{user.role}. {user.status}. {user.totpEnabled ? "Two-step enabled." : "Two-step off."}</span></div>{user.role !== "owner" && <div className="row-actions">{user.status === "pending" && <><button className="success" type="button" onClick={() => action(`/api/admin/users/${user.id}/approve`)}>Approve</button><button className="danger" type="button" onClick={() => action(`/api/admin/users/${user.id}/reject`)}>Reject</button></>}{user.status === "active" && <button type="button" onClick={() => action(`/api/admin/users/${user.id}/status`, { status: "disabled" })}>Disable</button>}{user.status === "disabled" && <button type="button" onClick={() => action(`/api/admin/users/${user.id}/status`, { status: "active" })}>Enable</button>}<button type="button" onClick={async () => { const result = await post<{ code: string }>(`/api/admin/users/${user.id}/password-reset`, {}, csrfToken); setInvite(result.code) }}>Reset password</button><button className="danger" type="button" onClick={() => api(`/api/admin/users/${user.id}`, { method: "DELETE" }, csrfToken).then(load).catch(error => onNotice(formatError(error)))}>Remove</button></div>}</div>)}</div></section>
-    <section className="settings-section"><h2>Browser workers</h2><div className="worker-grid">{health.map(worker => <div className="worker" key={worker.id}><strong>{worker.id}</strong><span>{worker.ready && worker.browserConnected ? "Ready" : "Unavailable"}</span><span>{worker.sessionId ? "In use" : "Available"}</span></div>)}</div></section>
+    <section className="settings-section"><h2>Browser workers</h2><div className="worker-grid">{health.map(worker => <div className="worker" key={worker.id}><strong>{worker.id}</strong><span>{worker.ready && worker.browserConnected ? "Ready" : "Unavailable"}</span><span>{worker.audioReady ? "Audio ready" : "Audio unavailable"}</span><span>{worker.sessionId ? "In use" : "Available"}</span></div>)}</div></section>
     <section className="settings-section"><h2>Network and DNS</h2><p>MrowSearch uses the server network route. Configure the host VPN outside this application.</p>{network && <p className="diagnostic">Outbound address: {network.outboundAddresses.join(", ") || "Test unavailable"}. Resolver: {network.resolverStatus}.</p>}<form onSubmit={saveNetwork} className="field-grid"><Select label="DNS mode" value={dnsMode} onChange={setDnsMode} options={[["system","System DNS"],["custom","Custom DNS"],["doh","DNS over HTTPS"],["dot","DNS over TLS"]]} /><div><label htmlFor="dns-endpoint">Resolver endpoint</label><input id="dns-endpoint" value={dnsEndpoint} onChange={event => setDnsEndpoint(event.target.value)} placeholder={dnsMode === "doh" ? "https://resolver.example/dns-query" : "Resolver address"} disabled={dnsMode === "system"} /></div><div><label htmlFor="allowed-ports">Allowed destination ports</label><input id="allowed-ports" value={ports} onChange={event => setPorts(event.target.value)} /></div><div className="field-action"><button className="primary" type="submit">Save network settings</button></div></form></section>
   </main>
 }

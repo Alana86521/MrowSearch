@@ -183,7 +183,7 @@ export class ViewerService extends EventEmitter {
       try {
         return { id: worker.id, directory: worker.directory, ...(await worker.health()) }
       } catch {
-        return { id: worker.id, directory: worker.directory, ready: false, browserConnected: false, sessionId: null }
+        return { id: worker.id, directory: worker.directory, ready: false, browserConnected: false, audioReady: false, sessionId: null }
       }
     }))
   }

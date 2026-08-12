@@ -12,18 +12,22 @@ x-worker: &worker
   cap_drop:
     - ALL
   mem_limit: 1280m
-  cpus: 0.8
+  cpus: 2.0
   shm_size: 512m
   environment: &worker-environment
     VNC_PW: ${MROW_WORKER_PASSWORD}
     LAUNCH_URL: about:blank
-    KASM_SVC_AUDIO: "1"
+    KASM_SVC_AUDIO: "0"
     KASM_SVC_AUDIO_INPUT: "0"
     KASM_SVC_GAMEPAD: "0"
     KASM_SVC_PRINTER: "0"
     KASM_SVC_SMARTCARD: "0"
     KASM_SVC_UPLOADS: "0"
     KASM_SVC_WEBCAM: "0"
+    MAX_FRAME_RATE: "30"
+    VNC_RESOLUTION: 1280x720
+    MROW_PULSE_HOME: /var/run/pulse
+    MROW_PULSE_SOURCE: default
     APP_ARGS: --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 --remote-allow-origins=http://127.0.0.1:9222 --user-data-dir=/tmp/mrow-chromium-profile --proxy-server=http://127.0.0.1:3128 --proxy-bypass-list=<-loopback> --disable-sync --disable-background-networking --disable-component-update --disable-default-apps --disable-features=WebRtcHideLocalIpsWithMdns,AutofillServerCommunication --disable-popup-blocking --force-webrtc-ip-handling-policy=disable_non_proxied_udp --webrtc-ip-handling-policy=disable_non_proxied_udp --no-first-run --kiosk
     MROW_MAX_UPLOAD_BYTES: ${MROW_MAX_UPLOAD_BYTES:-104857600}
     MROW_MAX_DOWNLOAD_BYTES: ${MROW_MAX_DOWNLOAD_BYTES:-1073741824}
@@ -93,7 +97,7 @@ services:
       timeout: 5s
       retries: 3
     mem_limit: 512m
-    cpus: 0.4
+    cpus: 1.0
     depends_on:
       mrow-search:
         condition: service_healthy
@@ -123,7 +127,7 @@ services:
       timeout: 5s
       retries: 5
     mem_limit: 512m
-    cpus: 0.3
+    cpus: 0.5
 
   mrow-egress:
     build:
@@ -154,7 +158,7 @@ services:
       timeout: 5s
       retries: 5
     mem_limit: 256m
-    cpus: 0.1
+    cpus: 0.5
 
   mrow-browser-1:
     <<: *worker

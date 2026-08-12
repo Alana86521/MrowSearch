@@ -17,6 +17,7 @@ export interface WorkerStartRequest {
 export interface WorkerHealth {
   ready: boolean
   browserConnected: boolean
+  audioReady: boolean
   sessionId: string | null
 }
 

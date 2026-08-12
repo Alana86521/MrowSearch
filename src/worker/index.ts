@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import { chmodSync, createReadStream, existsSync, mkdirSync, rmSync, statSync } from "node:fs"
 import { join } from "node:path"
-import { spawn } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import { chromium, type Browser, type BrowserContext, type Download, type FileChooser, type Page } from "playwright-core"
 import type { ClearDataRequest, PrivacyMode, TrackingLevel, PopupPolicy, ViewerCommand, ViewerEvent, ViewerSnapshot, ViewerTab } from "../shared/contracts.js"
 import { isTrackerHost } from "../shared/tracking.js"
@@ -51,6 +51,11 @@ const maxTabs = 4
 const maxUploadBytes = Number(process.env.MROW_MAX_UPLOAD_BYTES ?? 104857600)
 const maxDownloadBytes = Number(process.env.MROW_MAX_DOWNLOAD_BYTES ?? 1073741824)
 const maxTempBytes = Number(process.env.MROW_MAX_TEMP_BYTES ?? 2147483648)
+const pulseEnvironment = { ...process.env, HOME: process.env.MROW_PULSE_HOME ?? "/var/run/pulse" }
+
+function audioReady() {
+  return spawnSync("pulseaudio", ["--check"], { env: pulseEnvironment, stdio: "ignore" }).status === 0
+}
 
 mkdirSync(socketDirectory, { recursive: true })
 if (existsSync(controlSocket)) {
@@ -544,7 +549,7 @@ async function snapshot(): Promise<ViewerSnapshot> {
       compatibility: tab.compatibility
     })
   }
-  return { sessionId: session.sessionId, workerId: process.env.MROW_WORKER_ID ?? "worker", tabs, activeTabId: session.activeTabId, streamPath: "/api/viewer/kasm/?autoconnect=1&resize=remote&path=api%2Fviewer%2Fstream" }
+  return { sessionId: session.sessionId, workerId: process.env.MROW_WORKER_ID ?? "worker", tabs, activeTabId: session.activeTabId, streamPath: "/api/viewer/kasm/?autoconnect=1&resize=scale&path=api%2Fviewer%2Fstream" }
 }
 
 async function clearSession(full: boolean) {
@@ -664,7 +669,8 @@ const server = createServer(async (request, response) => {
   try {
     const url = new URL(request.url ?? "/", "http://worker.local")
     if (request.method === "GET" && url.pathname === "/health") {
-      sendJson(response, 200, { ready: Boolean(browser), browserConnected: Boolean(browser), sessionId: session?.sessionId ?? null })
+      const audioAvailable = audioReady()
+      sendJson(response, 200, { ready: Boolean(browser) && audioAvailable, browserConnected: Boolean(browser), audioReady: audioAvailable, sessionId: session?.sessionId ?? null })
       return
     }
     if (request.method === "POST" && url.pathname === "/session/start") {
@@ -701,8 +707,12 @@ const server = createServer(async (request, response) => {
         sendJson(response, 409, { code: "VIEWER_NOT_ACTIVE" })
         return
       }
+      if (!audioReady()) {
+        sendJson(response, 503, { code: "AUDIO_UNAVAILABLE" })
+        return
+      }
       response.writeHead(200, { "content-type": "audio/webm; codecs=opus", "cache-control": "no-store", "x-content-type-options": "nosniff" })
-      const encoder = spawn("ffmpeg", ["-hide_banner", "-loglevel", "error", "-f", "pulse", "-i", process.env.MROW_PULSE_SOURCE ?? "@DEFAULT_MONITOR@", "-ac", "2", "-ar", "48000", "-c:a", "libopus", "-b:a", "96k", "-f", "webm", "-cluster_time_limit", "100", "-flush_packets", "1", "pipe:1"], { stdio: ["ignore", "pipe", "ignore"] })
+      const encoder = spawn("ffmpeg", ["-hide_banner", "-loglevel", "error", "-f", "pulse", "-fragment_size", "2000", "-ar", "48000", "-i", process.env.MROW_PULSE_SOURCE ?? "default", "-ac", "2", "-c:a", "libopus", "-b:a", "96k", "-application", "lowdelay", "-frame_duration", "20", "-f", "webm", "-cluster_time_limit", "100", "-flush_packets", "1", "pipe:1"], { env: pulseEnvironment, stdio: ["ignore", "pipe", "ignore"] })
       encoder.stdout.pipe(response)
       response.once("close", () => encoder.kill("SIGTERM"))
       encoder.once("error", () => response.destroy())
