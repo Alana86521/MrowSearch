@@ -1,11 +1,11 @@
 import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { extname, relative } from "node:path"
 
 const root = process.cwd()
 const output = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], { encoding: "utf8" })
-const files = output.split("\0").filter(Boolean).filter(file => !file.startsWith("node_modules"))
+const files = output.split("\0").filter(Boolean).filter(file => !file.startsWith("node_modules") && existsSync(file))
 const textExtensions = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".css", ".json", ".md", ".yml", ".yaml", ".html", ".xml", ".conf", ".sh", ".env", ".txt"])
 const failures = []
 const restricted = ["T3BlbkFJ", "Q2hhdEdQVA==", "Q29kZXg=", "Q2xhdWRl", "QW50aHJvcGlj", "Q29waWxvdA==", "QWlkZXI=", "Q3Vyc29y", "Q2xpbmU="].map(value => Buffer.from(value, "base64").toString("utf8"))

@@ -15,6 +15,18 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    env:
+      MROW_PUBLIC_URL: http://127.0.0.1:3080
+      MROW_ALLOWED_ORIGINS: http://127.0.0.1:3080
+      MROW_ALLOW_INSECURE_HTTP: "true"
+      MROW_CASAOS_SCHEME: http
+      MROW_CASAOS_HOSTNAME: 127.0.0.1
+      MROW_CASAOS_PORT: "3080"
+      MROW_SETUP_TOKEN: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      MROW_DATA_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      MROW_SESSION_SECRET: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      MROW_WORKER_PASSWORD: cccccccccccccccccccccccc
+      MROW_SEARXNG_SECRET: dddddddddddddddddddddddddddddddd
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,21 +37,25 @@ jobs:
       - run: npm run check
       - run: npm run build
       - run: bash -n install.sh
-      - run: docker build --tag mrowsearch-app-check .
-      - run: docker build --file browser/Dockerfile --tag mrowsearch-browser-check .
+      - run: bash -n browser/custom_startup.sh
+      - run: docker build --tag mrowsearch-app:1.0.0 .
+      - run: docker build --file browser/Dockerfile --tag mrowsearch-worker:1.0.0 .
       - run: docker compose config --quiet
-        env:
-          MROW_PUBLIC_URL: http://192.168.1.20:3080
-          MROW_ALLOWED_ORIGINS: http://192.168.1.20:3080
-          MROW_ALLOW_INSECURE_HTTP: "true"
-          MROW_CASAOS_SCHEME: http
-          MROW_CASAOS_HOSTNAME: 192.168.1.20
-          MROW_CASAOS_PORT: "3080"
-          MROW_SETUP_TOKEN: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-          MROW_DATA_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
-          MROW_SESSION_SECRET: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-          MROW_WORKER_PASSWORD: cccccccccccccccccccccccc
-          MROW_SEARXNG_SECRET: dddddddddddddddddddddddddddddddd
+      - run: docker compose up --detach --no-build
+      - run: |
+          for attempt in $(seq 1 120)
+          do
+            if curl -fsS http://127.0.0.1:3080/health/ready >/dev/null
+            then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose ps
+          docker compose logs --tail=120 mrow-app mrow-browser-1
+          exit 1
+      - if: always()
+        run: docker compose down --volumes --remove-orphans
 
   images:
     if: startsWith(github.ref, 'refs/tags/v')

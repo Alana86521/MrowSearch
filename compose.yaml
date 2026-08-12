@@ -18,23 +18,17 @@ x-worker: &worker
   environment: &worker-environment
     VNC_PW: ${MROW_WORKER_PASSWORD}
     LAUNCH_URL: about:blank
-    APP_ARGS: --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 --remote-allow-origins=http://127.0.0.1:9222 --proxy-server=http://127.0.0.1:3128 --proxy-bypass-list=<-loopback> --disable-sync --disable-background-networking --disable-component-update --disable-default-apps --disable-features=WebRtcHideLocalIpsWithMdns,AutofillServerCommunication --disable-popup-blocking --force-webrtc-ip-handling-policy=disable_non_proxied_udp --webrtc-ip-handling-policy=disable_non_proxied_udp --no-first-run --kiosk
+    APP_ARGS: --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 --remote-allow-origins=http://127.0.0.1:9222 --user-data-dir=/tmp/mrow-chromium-profile --proxy-server=http://127.0.0.1:3128 --proxy-bypass-list=<-loopback> --disable-sync --disable-background-networking --disable-component-update --disable-default-apps --disable-features=WebRtcHideLocalIpsWithMdns,AutofillServerCommunication --disable-popup-blocking --force-webrtc-ip-handling-policy=disable_non_proxied_udp --webrtc-ip-handling-policy=disable_non_proxied_udp --no-first-run --kiosk
     MROW_MAX_UPLOAD_BYTES: ${MROW_MAX_UPLOAD_BYTES:-104857600}
     MROW_MAX_DOWNLOAD_BYTES: ${MROW_MAX_DOWNLOAD_BYTES:-1073741824}
     MROW_MAX_TEMP_BYTES: ${MROW_MAX_TEMP_BYTES:-2147483648}
   tmpfs:
-    - /tmp:rw,noexec,nosuid,size=512m
-    - /var/tmp:rw,noexec,nosuid,size=64m
-    - /var/log:rw,noexec,nosuid,size=32m
-    - /var/lib:rw,noexec,nosuid,size=64m
-    - /run:rw,noexec,nosuid,size=32m
-    - /home/kasm-user:rw,nosuid,size=2304m
-  deploy:
-    resources:
-      limits:
-        cpus: "0.8"
-        memory: 1280M
-
+    - /tmp:rw,noexec,nosuid,size=512m,uid=1000,gid=0,mode=1777
+    - /var/tmp:rw,noexec,nosuid,size=64m,uid=1000,gid=0,mode=1777
+    - /var/log:rw,noexec,nosuid,size=32m,uid=1000,gid=0,mode=0750
+    - /var/lib:rw,noexec,nosuid,size=64m,uid=1000,gid=0,mode=0750
+    - /run:rw,noexec,nosuid,size=32m,uid=1000,gid=0,mode=0750
+    - /home/kasm-user:rw,nosuid,size=2304m,uid=1000,gid=0,mode=0700
 services:
   mrow-app:
     build:
@@ -88,11 +82,6 @@ services:
       retries: 3
     mem_limit: 512m
     cpus: 0.4
-    deploy:
-      resources:
-        limits:
-          cpus: "0.4"
-          memory: 512M
     depends_on:
       mrow-search:
         condition: service_healthy
@@ -122,11 +111,6 @@ services:
       retries: 5
     mem_limit: 512m
     cpus: 0.3
-    deploy:
-      resources:
-        limits:
-          cpus: "0.3"
-          memory: 512M
 
   mrow-egress:
     build:
@@ -158,11 +142,6 @@ services:
       retries: 5
     mem_limit: 256m
     cpus: 0.1
-    deploy:
-      resources:
-        limits:
-          cpus: "0.1"
-          memory: 256M
 
   mrow-browser-1:
     <<: *worker
