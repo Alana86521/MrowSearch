@@ -38,7 +38,19 @@ export class ViewerService extends EventEmitter {
       return existing.snapshot
     }
     const used = new Set([...this.allocations.values()].map(value => value.worker.id))
-    const worker = this.workers.find(candidate => !used.has(candidate.id) && candidate.available())
+    let worker: WorkerClient | undefined
+    for (const candidate of this.workers) {
+      if (used.has(candidate.id) || !candidate.available()) {
+        continue
+      }
+      try {
+        const health = await candidate.health()
+        if (health.ready && health.browserConnected) {
+          worker = candidate
+          break
+        }
+      } catch {}
+    }
     if (!worker) {
       throw new ApiFault(503, { code: "VIEWER_CAPACITY_FULL", message: "No private viewer is available.", action: "Close another viewer or try again after an inactive session ends." })
     }

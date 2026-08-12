@@ -1,4 +1,14 @@
-use_default_settings: true
+use_default_settings:
+  engines:
+    keep_only:
+      - duckduckgo
+      - bing
+      - mojeek
+      - qwant
+      - yahoo
+      - mwmbl
+      - wiby
+      - wikipedia
 server:
   bind_address: "0.0.0.0"
   port: 8080
@@ -15,9 +25,22 @@ search:
 outgoing:
   request_timeout: 8.0
   max_request_timeout: 15.0
-enabled_plugins:
-  - "Hash plugin"
-  - "Self Information"
-  - "Tracker URL remover"
+engines:
+  - name: bing
+    disabled: false
+  - name: mojeek
+    disabled: false
+  - name: qwant
+    disabled: false
+  - name: yahoo
+    disabled: false
+  - name: mwmbl
+    disabled: false
+  - name: wiby
+    disabled: false
+  - name: wikipedia
+    display_type:
+      - infobox
+      - list
 logging:
   level: WARNING

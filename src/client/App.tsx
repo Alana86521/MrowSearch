@@ -353,7 +353,7 @@ function ViewerScreen({ snapshot, viewerEvent, csrfToken, onSnapshot, onViewerEv
       </div>
       {active?.compatibility !== "ready" && active?.compatibility !== undefined && <div className="compatibility" role="alert"><strong>The destination cannot run in the private viewer.</strong><span>Check the address, try again, or open it externally.</span><button type="button" onClick={() => setExternalUrl(active.currentUrl)}>Open externally</button></div>}
       <div className="viewer-frame-wrap">
-        {streamSrc ? <iframe title="Private Chromium display" className="viewer-frame" src={streamSrc} sandbox="allow-scripts allow-forms allow-pointer-lock" allow="clipboard-read 'none'; clipboard-write 'none'; camera 'none'; microphone 'none'; geolocation 'none'" /> : <div className="stream-loading">Connecting to the private display.</div>}
+        {streamSrc ? <iframe title="Private Chromium display" className="viewer-frame" src={streamSrc} sandbox="allow-scripts allow-forms allow-pointer-lock allow-same-origin" allow="clipboard-read 'none'; clipboard-write 'none'; camera 'none'; microphone 'none'; geolocation 'none'" /> : <div className="stream-loading">Connecting to the private display.</div>}
       </div>
       <audio ref={audioRef} src={audioSrc} preload="none" />
       {externalUrl && <ConfirmExternal url={externalUrl} onCancel={() => setExternalUrl("")} />}

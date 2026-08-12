@@ -13,8 +13,9 @@ while true
 do
     if ! kill -0 "$worker_pid" 2>/dev/null
     then
-        wait "$worker_pid"
-        exit $?
+        wait "$worker_pid" || true
+        node /opt/mrow/dist/worker/index.js &
+        worker_pid=$!
     fi
     if ! pgrep -x chromium >/dev/null
     then

@@ -182,7 +182,7 @@ async function createContext(trackingLevel: TrackingLevel, storageState?: string
       return
     }
     const headers = { ...request.headers() }
-    const source = request.frame().url()
+    const source = request.serviceWorker() ? "" : request.frame().url()
     if (headers.referer && source) {
       try {
         const sourceUrl = new URL(source)
