@@ -361,10 +361,8 @@ register_with_casaos() {
   local status
   local method
   local target
-  local existing=0
   endpoint="$(casaos_endpoint)" || return 1
   if casaos_app_exists "$endpoint"; then
-    existing=1
     method=PUT
     target="$endpoint/v2/app_management/compose/mrowsearch?check_port_conflict=false"
   else
@@ -372,8 +370,9 @@ register_with_casaos() {
     target="$endpoint/v2/app_management/compose?check_port_conflict=true"
   fi
   stop_generated_service
-  if (( existing == 0 )); then
-    compose down --remove-orphans >/dev/null 2>&1 || true
+  if ! compose down --remove-orphans; then
+    say "Docker did not stop the old containers cleanly. Trying again."
+    compose down --remove-orphans
   fi
   rendered="$(mktemp)"
   response="$(mktemp)"
@@ -388,8 +387,6 @@ register_with_casaos() {
   fi
   rm -f "$rendered" "$response"
   restore_casaos_compose
-  say "Recreating the application containers with the updated images."
-  compose up -d --force-recreate --remove-orphans
   remove_generated_service
   return 0
 }
