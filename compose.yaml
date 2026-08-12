@@ -6,7 +6,6 @@ x-worker: &worker
     dockerfile: browser/Dockerfile
   image: ${MROW_WORKER_IMAGE:-mrowsearch-worker:1.0.0}
   restart: unless-stopped
-  network_mode: none
   read_only: true
   security_opt:
     - no-new-privileges:true
@@ -18,6 +17,13 @@ x-worker: &worker
   environment: &worker-environment
     VNC_PW: ${MROW_WORKER_PASSWORD}
     LAUNCH_URL: about:blank
+    KASM_SVC_AUDIO: "1"
+    KASM_SVC_AUDIO_INPUT: "0"
+    KASM_SVC_GAMEPAD: "0"
+    KASM_SVC_PRINTER: "0"
+    KASM_SVC_SMARTCARD: "0"
+    KASM_SVC_UPLOADS: "0"
+    KASM_SVC_WEBCAM: "0"
     APP_ARGS: --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 --remote-allow-origins=http://127.0.0.1:9222 --user-data-dir=/tmp/mrow-chromium-profile --proxy-server=http://127.0.0.1:3128 --proxy-bypass-list=<-loopback> --disable-sync --disable-background-networking --disable-component-update --disable-default-apps --disable-features=WebRtcHideLocalIpsWithMdns,AutofillServerCommunication --disable-popup-blocking --force-webrtc-ip-handling-policy=disable_non_proxied_udp --webrtc-ip-handling-policy=disable_non_proxied_udp --no-first-run --kiosk
     MROW_MAX_UPLOAD_BYTES: ${MROW_MAX_UPLOAD_BYTES:-104857600}
     MROW_MAX_DOWNLOAD_BYTES: ${MROW_MAX_DOWNLOAD_BYTES:-1073741824}
@@ -29,6 +35,12 @@ x-worker: &worker
     - /var/lib:rw,noexec,nosuid,size=64m,uid=1000,gid=0,mode=0750
     - /run:rw,noexec,nosuid,size=32m,uid=1000,gid=0,mode=0750
     - /home/kasm-user:rw,nosuid,size=2304m,uid=1000,gid=0,mode=0700
+  healthcheck:
+    test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:9222/json/version').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+    interval: 15s
+    timeout: 5s
+    retries: 4
+    start_period: 90s
 services:
   mrow-app:
     build:
@@ -145,24 +157,32 @@ services:
 
   mrow-browser-1:
     <<: *worker
+    networks:
+      - worker-1-isolated
     volumes:
       - worker-1-socket:/run/mrow
       - egress-socket:/run/mrow-egress:ro
 
   mrow-browser-2:
     <<: *worker
+    networks:
+      - worker-2-isolated
     volumes:
       - worker-2-socket:/run/mrow
       - egress-socket:/run/mrow-egress:ro
 
   mrow-browser-3:
     <<: *worker
+    networks:
+      - worker-3-isolated
     volumes:
       - worker-3-socket:/run/mrow
       - egress-socket:/run/mrow-egress:ro
 
   mrow-browser-4:
     <<: *worker
+    networks:
+      - worker-4-isolated
     volumes:
       - worker-4-socket:/run/mrow
       - egress-socket:/run/mrow-egress:ro
@@ -170,6 +190,14 @@ services:
 networks:
   services:
     driver: bridge
+  worker-1-isolated:
+    internal: true
+  worker-2-isolated:
+    internal: true
+  worker-3-isolated:
+    internal: true
+  worker-4-isolated:
+    internal: true
 
 volumes:
   app-data:

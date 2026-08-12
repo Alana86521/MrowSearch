@@ -394,7 +394,8 @@ wait_for_app() {
   done
   say "MrowSearch did not become ready within six minutes."
   compose ps || true
-  compose logs --tail=80 mrow-app mrow-browser-1 || true
+  compose logs --tail=160 mrow-browser-1 || true
+  compose logs --tail=20 mrow-app || true
   return 1
 }
 

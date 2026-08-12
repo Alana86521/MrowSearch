@@ -53,7 +53,8 @@ export async function buildServer() {
         objectSrc: ["'none'"],
         baseUri: ["'none'"],
         formAction: ["'self'"],
-        frameAncestors: ["'self'"]
+        frameAncestors: ["'self'"],
+        upgradeInsecureRequests: config.secureCookies ? [] : null
       }
     },
     crossOriginEmbedderPolicy: false,
